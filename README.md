@@ -125,7 +125,7 @@ Built against n8n 1.x node versions. If your instance is newer, n8n may offer to
 
 ## License
 
-MIT. See [LICENSE](LICENSE).
+Source-available, not open source. You may read and evaluate this code, but commercial or production use requires a written licence from Usama Afzall. See `LICENSE` and https://usama.websiteprism.com/contact.
 
 ## Need this customized?
 
