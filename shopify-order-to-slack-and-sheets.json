@@ -1,0 +1,185 @@
+{
+  "name": "Shopify Order to Slack and Google Sheets",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## Shopify order to Slack and Sheets\n\n**Setup checklist**\n1. Attach your own credentials to the Shopify, Google Sheets and Slack nodes.\n2. Open **Config** and set the spreadsheet ID, sheet name, Slack channels and the high-value threshold.\n3. Add a header row to the sheet that matches the field names produced by **Normalize Order**.\n4. Activate the workflow. Shopify registers the webhook automatically.\n\nNo secrets are stored in this file.",
+        "height": 300,
+        "width": 420
+      },
+      "id": "0b6f1c1e-5a0d-4b7e-9a51-3f1f0c9d1a01",
+      "name": "Sticky Note",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [-520, -360]
+    },
+    {
+      "parameters": {
+        "authentication": "accessToken",
+        "topic": "orders/create"
+      },
+      "id": "0b6f1c1e-5a0d-4b7e-9a51-3f1f0c9d1a02",
+      "name": "Shopify Trigger",
+      "type": "n8n-nodes-base.shopifyTrigger",
+      "typeVersion": 1,
+      "position": [-480, 0],
+      "webhookId": "5d0c8a4e-2f6b-4c1d-8e3a-7b9f0a1c2d01",
+      "credentials": {
+        "shopifyAccessTokenApi": { "id": "REPLACE_WITH_YOUR_CREDENTIAL", "name": "Shopify Access Token (placeholder)" }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "manual",
+        "includeOtherFields": true,
+        "assignments": {
+          "assignments": [
+            { "id": "a1000000-0000-4000-8000-000000000001", "name": "config_spreadsheet_id", "type": "string", "value": "REPLACE_WITH_GOOGLE_SPREADSHEET_ID" },
+            { "id": "a1000000-0000-4000-8000-000000000002", "name": "config_sheet_name", "type": "string", "value": "Orders" },
+            { "id": "a1000000-0000-4000-8000-000000000003", "name": "config_slack_channel", "type": "string", "value": "#orders" },
+            { "id": "a1000000-0000-4000-8000-000000000004", "name": "config_slack_vip_channel", "type": "string", "value": "#high-value-orders" },
+            { "id": "a1000000-0000-4000-8000-000000000005", "name": "config_high_value_threshold", "type": "number", "value": 250 }
+          ]
+        },
+        "options": {}
+      },
+      "id": "0b6f1c1e-5a0d-4b7e-9a51-3f1f0c9d1a03",
+      "name": "Config",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [-260, 0],
+      "notes": "Single place for every value you need to change. The Shopify payload passes through untouched."
+    },
+    {
+      "parameters": {
+        "mode": "manual",
+        "assignments": {
+          "assignments": [
+            { "id": "b2000000-0000-4000-8000-000000000001", "name": "order_number", "type": "string", "value": "={{ $json.name }}" },
+            { "id": "b2000000-0000-4000-8000-000000000002", "name": "order_id", "type": "string", "value": "={{ String($json.id) }}" },
+            { "id": "b2000000-0000-4000-8000-000000000003", "name": "created_at", "type": "string", "value": "={{ $json.created_at }}" },
+            { "id": "b2000000-0000-4000-8000-000000000004", "name": "customer_name", "type": "string", "value": "={{ [$json.customer?.first_name, $json.customer?.last_name].filter(Boolean).join(' ') || 'Guest' }}" },
+            { "id": "b2000000-0000-4000-8000-000000000005", "name": "customer_email", "type": "string", "value": "={{ $json.email || $json.contact_email || '' }}" },
+            { "id": "b2000000-0000-4000-8000-000000000006", "name": "total", "type": "number", "value": "={{ parseFloat($json.total_price) || 0 }}" },
+            { "id": "b2000000-0000-4000-8000-000000000007", "name": "currency", "type": "string", "value": "={{ $json.currency }}" },
+            { "id": "b2000000-0000-4000-8000-000000000008", "name": "item_count", "type": "number", "value": "={{ ($json.line_items || []).reduce((sum, item) => sum + item.quantity, 0) }}" },
+            { "id": "b2000000-0000-4000-8000-000000000009", "name": "items", "type": "string", "value": "={{ ($json.line_items || []).map(item => item.quantity + ' x ' + item.title).join(', ') }}" },
+            { "id": "b2000000-0000-4000-8000-000000000010", "name": "financial_status", "type": "string", "value": "={{ $json.financial_status || '' }}" },
+            { "id": "b2000000-0000-4000-8000-000000000011", "name": "shipping_country", "type": "string", "value": "={{ $json.shipping_address?.country || '' }}" },
+            { "id": "b2000000-0000-4000-8000-000000000012", "name": "is_high_value", "type": "boolean", "value": "={{ (parseFloat($json.total_price) || 0) >= $json.config_high_value_threshold }}" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "0b6f1c1e-5a0d-4b7e-9a51-3f1f0c9d1a04",
+      "name": "Normalize Order",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [-40, 0],
+      "notes": "Flattens the Shopify order into the exact columns written to the sheet. Only these fields continue downstream."
+    },
+    {
+      "parameters": {
+        "resource": "sheet",
+        "operation": "append",
+        "documentId": { "__rl": true, "mode": "id", "value": "={{ $('Config').item.json.config_spreadsheet_id }}" },
+        "sheetName": { "__rl": true, "mode": "name", "value": "={{ $('Config').item.json.config_sheet_name }}" },
+        "columns": { "mappingMode": "autoMapInputData", "value": {}, "matchingColumns": [], "schema": [] },
+        "options": {}
+      },
+      "id": "0b6f1c1e-5a0d-4b7e-9a51-3f1f0c9d1a05",
+      "name": "Append Order to Sheet",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [180, 0],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000,
+      "credentials": {
+        "googleSheetsOAuth2Api": { "id": "REPLACE_WITH_YOUR_CREDENTIAL", "name": "Google Sheets OAuth2 (placeholder)" }
+      },
+      "notes": "Auto-maps incoming fields to sheet columns with the same header names."
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict", "version": 2 },
+          "conditions": [
+            {
+              "id": "c3000000-0000-4000-8000-000000000001",
+              "leftValue": "={{ $('Normalize Order').item.json.is_high_value }}",
+              "rightValue": "",
+              "operator": { "type": "boolean", "operation": "true", "singleValue": true }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "0b6f1c1e-5a0d-4b7e-9a51-3f1f0c9d1a06",
+      "name": "High-Value Order?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [400, 0]
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "post",
+        "select": "channel",
+        "channelId": { "__rl": true, "mode": "name", "value": "={{ $('Config').item.json.config_slack_vip_channel }}" },
+        "text": "=:rotating_light: *High-value order {{ $('Normalize Order').item.json.order_number }}*\n*Total:* {{ $('Normalize Order').item.json.total }} {{ $('Normalize Order').item.json.currency }}\n*Customer:* {{ $('Normalize Order').item.json.customer_name }} ({{ $('Normalize Order').item.json.customer_email }})\n*Items:* {{ $('Normalize Order').item.json.items }}\n*Ships to:* {{ $('Normalize Order').item.json.shipping_country }}",
+        "otherOptions": { "includeLinkToWorkflow": false }
+      },
+      "id": "0b6f1c1e-5a0d-4b7e-9a51-3f1f0c9d1a07",
+      "name": "Slack: High-Value Alert",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.3,
+      "position": [640, -110],
+      "credentials": {
+        "slackApi": { "id": "REPLACE_WITH_YOUR_CREDENTIAL", "name": "Slack Bot Token (placeholder)" }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "post",
+        "select": "channel",
+        "channelId": { "__rl": true, "mode": "name", "value": "={{ $('Config').item.json.config_slack_channel }}" },
+        "text": "=:package: New order {{ $('Normalize Order').item.json.order_number }}: {{ $('Normalize Order').item.json.total }} {{ $('Normalize Order').item.json.currency }} from {{ $('Normalize Order').item.json.customer_name }} ({{ $('Normalize Order').item.json.item_count }} items)",
+        "otherOptions": { "includeLinkToWorkflow": false }
+      },
+      "id": "0b6f1c1e-5a0d-4b7e-9a51-3f1f0c9d1a08",
+      "name": "Slack: New Order",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.3,
+      "position": [640, 110],
+      "credentials": {
+        "slackApi": { "id": "REPLACE_WITH_YOUR_CREDENTIAL", "name": "Slack Bot Token (placeholder)" }
+      }
+    }
+  ],
+  "connections": {
+    "Shopify Trigger": {
+      "main": [[{ "node": "Config", "type": "main", "index": 0 }]]
+    },
+    "Config": {
+      "main": [[{ "node": "Normalize Order", "type": "main", "index": 0 }]]
+    },
+    "Normalize Order": {
+      "main": [[{ "node": "Append Order to Sheet", "type": "main", "index": 0 }]]
+    },
+    "Append Order to Sheet": {
+      "main": [[{ "node": "High-Value Order?", "type": "main", "index": 0 }]]
+    },
+    "High-Value Order?": {
+      "main": [
+        [{ "node": "Slack: High-Value Alert", "type": "main", "index": 0 }],
+        [{ "node": "Slack: New Order", "type": "main", "index": 0 }]
+      ]
+    }
+  },
+  "pinData": {},
+  "active": false,
+  "settings": { "executionOrder": "v1" }
+}
